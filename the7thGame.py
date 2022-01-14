@@ -11,6 +11,7 @@ import random
 import requests
 import argparse
 import pygame.locals
+from ArtificialIntelligence import AI
 from io import BytesIO
 from PIL import Image
 
@@ -42,7 +43,6 @@ def dumpSquares(squares):
 # --- Classes -------------------------------------------------------------------------------------
 
 class colorList:
-
 	black =			(0, 0, 0)
 	white =			(255, 255, 255)
 	red =			(255, 0, 0)
@@ -258,17 +258,20 @@ class the7thGame():
 
 	def resetGame(self):
 		self.boardContent = [[0 for x in range(7)] for y in range(7)]
-		self.boardContent[0][0] = 1
-		self.boardContent[0][6] = 2
-		self.boardContent[6][0] = 2
-		self.boardContent[6][6] = 1
-		# --- for testing --------------------------------------------------
-		for x in range(150):
-			xPos =  random.randint(0,6)
-			yPos =  random.randint(0,6)
-			player =  random.randint(1,2)
-			self.boardContent[xPos][yPos] = player
-		# --- for testing --------------------------------------------------
+		# --- random --------------------------------------------------
+		player = 1
+		if args.random:
+			for x in range(int(args.random[0])):
+				xPos =  random.randint(0,6)
+				yPos =  random.randint(0,6)
+				self.boardContent[xPos][yPos] = player
+				player = 2 if player == 1 else 1
+		else:
+			self.boardContent[0][0] = 1
+			self.boardContent[0][6] = 2
+			self.boardContent[6][0] = 2
+			self.boardContent[6][6] = 1
+		# --- random --------------------------------------------------
 		self.possibleMoves = []
 		self.playerActive = 1	# value = 0, 1 or 2
 		self.stage = 1	# either 1 = selectPiece or 2 = movePiece
@@ -402,13 +405,25 @@ class the7thGame():
 
 # --- Main  ---------------------------------------------------------------------------------------
 
+
+#check arguments
+parser = argparse.ArgumentParser(formatter_class=lambda prog: argparse.HelpFormatter(prog,max_help_position=120))
+parser.add_argument("-v", "--version",		action="store_true",	help="Print version and exit")
+parser.add_argument("-r", "--random", nargs=1, help="Add X random pieces at random positions")
+args = parser.parse_args()
+if args.version:
+	sys.exit('\n  Current version is ' + self.version + '\n')
+if args.random:
+	if int(args.random[0]) > 100:
+		sys.exit("\n  Let's be reasonable...\n")
+
+
+opponent = AI()
 colors = colorList
 obj = the7thGame()
 
 
 # --- TODO ---------------------------------------------------------------------------------------
-# - include all animations in main frame
-# - random board (from --random XX)
 # - AI
 
 
