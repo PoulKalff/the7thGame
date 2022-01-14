@@ -7,6 +7,7 @@ import math
 import time
 import json
 import pygame
+import random
 import requests
 import argparse
 import pygame.locals
@@ -18,13 +19,15 @@ from PIL import Image
 
 pygame.init()
 version = '0.5'	# added jump-logic
-playerColors = { 1 : (80, 120, 250), 2 : (70, 180, 50) }
 sounds =	{
 					'no' :		pygame.mixer.Sound("snd/no.mp3"),
 					'fail' :	pygame.mixer.Sound("snd/fail.mp3"),
 					'noMoves' : pygame.mixer.Sound("snd/nomoves.mp3")
 			}
 background = pygame.image.load('gfx/background.png')
+playerNames =  { 1 : 'Leucocytes', 2 : 'Covid-19' }
+playerColors = { 1 : (255, 255, 255), 2 : (255, 0, 0) }
+playerImages = { 1 : pygame.image.load("gfx/hvidt-blodlegme.png") , 2 : pygame.image.load("gfx/corona-virus.png") }
 font30 = pygame.font.Font('freesansbold.ttf', 30)
 font60 = pygame.font.Font('freesansbold.ttf', 60)
 
@@ -64,7 +67,7 @@ class the7thGame():
 		self.height = 750
 		self.resetGame()
 		pygame.init()
-		pygame.display.set_caption('The7thGame')
+		pygame.display.set_caption('The Covid-19 Game')
 		self.display = pygame.display.set_mode((self.width, self.height))
 		self.running = True
 		self.loop()
@@ -76,8 +79,8 @@ class the7thGame():
 		self.display.blit(background, (0, 0))
 		# draw grid
 		for c in [1, 100, 200, 300, 400, 500, 600, 699]:
-			pygame.draw.line(self.display, colors.white, (c, 0), (c, 700), 3)
-			pygame.draw.line(self.display, colors.white, (0, c), (700, c), 3)
+			pygame.draw.line(self.display, colors.green, (c, 0), (c, 700), 3)
+			pygame.draw.line(self.display, colors.green, (0, c), (700, c), 3)
 		# draw all pieces on the board, draw all possible moves
 		self.score = [0, 0]
 		for x in range(7):
@@ -86,13 +89,10 @@ class the7thGame():
 				yCord = y * 100 + 50
 				if self.boardContent[x][y] != 0:
 					if self.boardContent[x][y] == 1:
-						color = colors.blue
 						self.score[0] += 1
 					else:
-						color = colors.green
 						self.score[1] += 1
-					pygame.draw.circle(self.display, colors.lightGrey , (xCord, yCord), 40)
-					pygame.draw.circle(self.display, color, (xCord, yCord), 37)
+					self.display.blit(playerImages[self.boardContent[x][y]], (xCord - 40, yCord - 40) )
 		# draw possible moves, if any
 		for x, y  in self.possibleMoves:
 			coordX = x * 100 + 50
@@ -101,26 +101,26 @@ class the7thGame():
 		# draw status area
 		scoreA = str(self.score[0]) if self.score[0] > 9 else '0' + str(self.score[0])
 		scoreB = str(self.score[1]) if self.score[1] > 9 else '0' + str(self.score[1])
-		text1 = font30.render('Player to move : ', True, colors.white)
+		text1 = font30.render('Player move : ', True, colors.blue)
 		if not self.winner:
-			text2 = font30.render('Player ' + str(self.playerActive), True, playerColors[self.playerActive] )
+			text2 = font30.render(playerNames[self.playerActive], True, playerColors[self.playerActive] )
 		else:
 			text2 = font30.render('None', True, colors.red )
-		text3 = font30.render('Score : ', True, colors.white )
-		text4 = font30.render(scoreA, True, colors.blue )
-		text5 = font30.render('/', True, colors.white )
-		text6 = font30.render(scoreB, True, colors.green )
+		text3 = font30.render('Score : ', True, colors.blue )
+		text4 = font30.render(scoreA, True, colors.white )
+		text5 = font30.render('/', True, colors.blue )
+		text6 = font30.render(scoreB, True, colors.red )
 		pygame.draw.rect(self.display, colors.black, (0, 700, 700, 50))	
 		self.display.blit(text1, (10, 710))
-		self.display.blit(text2, (260, 710))
+		self.display.blit(text2, (220, 710))
 		self.display.blit(text3, (420, 710))
 		self.display.blit(text4, (550, 710))
 		self.display.blit(text5, (605, 710))
 		self.display.blit(text6, (630, 710))
-		pygame.draw.line(self.display, colors.white, (1, 700), (1, 750), 3)
-		pygame.draw.line(self.display, colors.white, (699, 700), (699, 750), 3)
-		pygame.draw.line(self.display, colors.white, (0, 750), (700, 750), 3)
-		pygame.draw.line(self.display, colors.white, (400, 705), (400, 742), 3)
+		pygame.draw.line(self.display, colors.green, (1, 700), (1, 750), 3)
+		pygame.draw.line(self.display, colors.green, (699, 700), (699, 750), 3)
+		pygame.draw.line(self.display, colors.green, (0, 750), (700, 750), 3)
+		pygame.draw.line(self.display, colors.green, (400, 705), (400, 742), 3)
 
 
 
@@ -206,7 +206,7 @@ class the7thGame():
 		# are all squares taken?
 		if self.score[0] + self.score[1] == 49:
 			self.winner = 1 if self.score[0] > self.score[1] else 2
-			condition = 'Winner  on  score'
+			condition = ' Highest   score '
 		# is a player eliminiated?
 		elif self.score[0] == 0:
 			self.winner = 2
@@ -215,21 +215,43 @@ class the7thGame():
 			self.winner = 1
 			condition = 'Player eliminated'
 		if self.winner:
-			text1 = font60.render('Congratulations', True, colors.red )
-			text2 = font60.render('Player ' + str(self.winner), True, colors.black )
-			text3 = font60.render('Player ' + str(self.winner), True, playerColors[self.winner] )
-			text4 = font60.render('You Win Game!', True, colors.red )
-			text5 = font30.render('(' + condition + ')', True, colors.red )
-			text6 = font30.render('Press Spacebar to play again or ESC to quit', True, colors.red )
-			self.display.blit(text1, (106, 120))
-			self.display.blit(text2, (228, 218))
-			self.display.blit(text2, (228, 222))
-			self.display.blit(text2, (232, 218))
-			self.display.blit(text2, (232, 222))
-			self.display.blit(text3, (230, 220))
-			self.display.blit(text4, (130, 320))
-			self.display.blit(text5, (203, 435))
-			self.display.blit(text6, (30, 535))
+			if self.winner == 1:
+				text1 = font60.render('Congratulations!', True, colors.blue )
+				text1b = font60.render('Congratulations!', True, colors.black )
+				text4 = font60.render('Leucocytes Win!', True, colors.blue )
+				text4b = font60.render('Leucocytes Win!', True, colors.black )
+				theEndGfx = pygame.image.load("gfx/win.png") 
+			else:
+				text1 =  font60.render('Noooooooooooo!!!', True, colors.blue )
+				text1b = font60.render('Noooooooooooo!!!', True, colors.black )
+				text4 =  font60.render('Covid-19 Wins!!!', True, colors.blue )
+				text4b = font60.render('Covid-19 Wins!!!', True, colors.black )
+				theEndGfx = pygame.image.load("gfx/loose.png") 
+			self.display.blit(theEndGfx, (95, 95) )
+			text2 = font30.render('(' + condition + ')', True, colors.blue )
+			text2b = font30.render('(' + condition + ')', True, colors.black )
+			text3 = font30.render('Press Spacebar to play again or ESC to quit', True, colors.black )
+			text3b = font30.render('Press Spacebar to play again or ESC to quit', True, colors.blue )
+			self.display.blit(text4b, (112, 328))
+			self.display.blit(text4b, (108, 328))
+			self.display.blit(text4b, (112, 332))
+			self.display.blit(text4b, (108, 332))
+			self.display.blit(text4, (110, 330))
+			self.display.blit(text1b, (76, 118))
+			self.display.blit(text1b, (80, 118))
+			self.display.blit(text1b, (76, 122))
+			self.display.blit(text1b, (80, 122))
+			self.display.blit(text1, (78, 120))
+			self.display.blit(text2b, (221, 533))
+			self.display.blit(text2b, (225, 533))
+			self.display.blit(text2b, (221, 537))
+			self.display.blit(text2b, (225, 537))
+			self.display.blit(text2, (223, 535))
+			self.display.blit(text3b, (28, 633))
+			self.display.blit(text3b, (32, 633))
+			self.display.blit(text3b, (28, 637))
+			self.display.blit(text3b, (32, 637))
+			self.display.blit(text3, (30, 635))
 		return True
 
 
@@ -240,6 +262,13 @@ class the7thGame():
 		self.boardContent[0][6] = 2
 		self.boardContent[6][0] = 2
 		self.boardContent[6][6] = 1
+		# --- for testing --------------------------------------------------
+		for x in range(150):
+			xPos =  random.randint(0,6)
+			yPos =  random.randint(0,6)
+			player =  random.randint(1,2)
+			self.boardContent[xPos][yPos] = player
+		# --- for testing --------------------------------------------------
 		self.possibleMoves = []
 		self.playerActive = 1	# value = 0, 1 or 2
 		self.stage = 1	# either 1 = selectPiece or 2 = movePiece
@@ -259,20 +288,21 @@ class the7thGame():
 		yDistance = yFrom - yTo
 		xCord = xFrom
 		yCord = yFrom
-		radius = 37
+		size = 80
 		# execute move
 		for step in range(20):
-			if step <= 10:
-				radius += 4
+			if step <= 9:
+				size += 7
 			else:
-				radius -= 4
+				size -= 7
 			xCord -= 10 * (xDistance / 200)
 			yCord -= 10 * (yDistance / 200)
 			self.drawBoard()
-			pygame.draw.circle(self.display, colors.lightGrey , (xCord, yCord), int(radius) + 3)
-			pygame.draw.circle(self.display, playerColors[self.playerActive], (xCord, yCord), int(radius))
+			imageScaled = pygame.transform.scale(playerImages[self.playerActive], (size, size))
+			xSize, ySize = imageScaled.get_size()
+			self.display.blit(imageScaled, (xCord - xSize / 2, yCord - ySize / 2) )
 			pygame.display.update()
-			time.sleep(0.01)
+			time.sleep(0.02)
 		self.boardContent[toSquare[0]][toSquare[1]] = self.playerActive
 		return True
 
@@ -282,8 +312,12 @@ class the7thGame():
 		""" Shows simple animation of a piece taken by another """
 		xCord = square[0] * 100 + 50
 		yCord = square[1] * 100 + 50
-		for radius in range(1, 38):
-			pygame.draw.circle(self.display, playerColors[self.playerActive], (xCord, yCord), radius)
+		for size in range(1, 80):
+			imageScaled = pygame.transform.scale(playerImages[self.playerActive], (size, size))
+			xSize, ySize = imageScaled.get_size()
+			if size == 79:
+				pygame.draw.circle(self.display, colors.black, (xCord, yCord), 47)
+			self.display.blit(imageScaled, (xCord - xSize / 2, yCord - ySize / 2) )
 			pygame.display.update()
 			time.sleep(0.01)
 		return True
@@ -302,10 +336,10 @@ class the7thGame():
 		xCord = xFrom
 		yCord = yFrom
 		# execute move
-		for radius in range(100):
+		for tick in range(100):
 			xCord -= (xDistance / 100)
 			yCord -= (yDistance / 100)
-			pygame.draw.circle(self.display, playerColors[self.playerActive], (xCord, yCord), 30)
+			self.display.blit(playerImages[self.playerActive], (xCord - 40, yCord - 40) )
 			pygame.display.update()
 			time.sleep(0.001)
 		return True
@@ -374,6 +408,7 @@ obj = the7thGame()
 
 # --- TODO ---------------------------------------------------------------------------------------
 # - include all animations in main frame
+# - random board (from --random XX)
 # - AI
 
 
