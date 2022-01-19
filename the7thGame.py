@@ -19,15 +19,15 @@ from PIL import Image
 # --- Variables / Ressources ----------------------------------------------------------------------
 
 pygame.init()
-version = '0.61'		# prep for changing self.possibleMoves
+version = '0.7'		# implemented AI as active player
 sounds =	{
-					'no' :			pygame.mixer.Sound("snd/no.mp3"),
-					'fail' :		pygame.mixer.Sound("snd/fail.mp3"),
-					'noMoves' : 	pygame.mixer.Sound("snd/nomoves.mp3"),
-					'splitA' : 		pygame.mixer.Sound("snd/leucocyteSplit.mp3"),
-					'splitB' : 		pygame.mixer.Sound("snd/covidSplit.mp3"),
-					'captureAdj' : 	pygame.mixer.Sound("snd/captureAdjacent.mp3"),
-					'jump' : 		pygame.mixer.Sound("snd/jump.mp3")
+				'no' :			pygame.mixer.Sound("snd/no.mp3"),
+				'fail' :		pygame.mixer.Sound("snd/fail.mp3"),
+				'noMoves' : 	pygame.mixer.Sound("snd/nomoves.mp3"),
+				'splitA' : 		pygame.mixer.Sound("snd/leucocyteSplit.mp3"),
+				'splitB' : 		pygame.mixer.Sound("snd/covidSplit.mp3"),
+				'captureAdj' : 	pygame.mixer.Sound("snd/captureAdjacent.mp3"),
+				'jump' : 		pygame.mixer.Sound("snd/jump.mp3")
 			}
 backgroundMusic = pygame.mixer.Sound("snd/Mozart.-.Symphony.No.40.1st.Movement.mp3")
 backgroundMusic.set_volume(0.03)
@@ -62,6 +62,24 @@ class colorList:
 	blue =			(80, 120, 250)
 	background =	(55, 55, 55)
 	yellow = 		(255, 255, 0)
+
+
+
+class Move:
+	""" A move on the board """
+
+	def __init__(self, fx, fy, tx, ty):
+		self.xFrom = fx
+		self.yFrom = fy
+		self.xTo = tx
+		self.yTo = ty
+		self.score = None
+		self.scoreLog = ''
+		self.type = 2 if abs(self.xFrom - self.xTo) > 1 or abs(self.yFrom - self.yTo) > 1 else 1
+
+
+	def show(self):
+		return '(' + str(self.xFrom) + ',' + str(self.yFrom) + ' ---> ' + str(self.xTo) + ',' + str(self.yTo) + ') ' + ('(JUMP) ' if self.type == 2 else '(SPLIT)') + '  ' + ('' if self.score != None and self.score < 0 else ' ') + str(self.score) + '  ' + self.scoreLog
 
 
 
@@ -104,10 +122,10 @@ class the7thGame():
 						self.score[1] += 1
 					self.display.blit(playerImages[self.boardContent[x][y]], (xCord - 40, yCord - 40) )
 		# draw possible moves, if any
-		for x, y  in self.possibleMoves:
-			coordX = x * 100 + 50
-			coordY = y * 100 + 50
-			if abs(self.movingFrom[0] - x) > 1 or abs(self.movingFrom[1] - y) > 1:
+		for move  in self.possibleMoves:
+			coordX = move.xTo * 100 + 50
+			coordY = move.yTo * 100 + 50
+			if move.type == 2:
 				pygame.draw.rect(self.display, colors.red, (coordX - 3, coordY - 15, 6, 10))
 				pygame.draw.polygon(self.display, colors.red, ((coordX - 10, coordY - 5),(coordX + 10, coordY - 5),(coordX, coordY + 5)) )
 				pygame.draw.ellipse(self.display, colors.red, (coordX - 10, coordY + 10, 20, 8))
@@ -171,25 +189,26 @@ class the7thGame():
 		for coord in allMoves:
 			if -1 < coord[0] < 7 and -1 < coord[1] < 7:
 				if self.boardContent[coord[0]][coord[1]] == 0:
-					possibleMoves.append(coord)
+					possibleMoves.append( Move(sqX, sqY, coord[0], coord[1]) )
 		return possibleMoves
 
 
 
-	def executeMove(self, squareFrom, squareTo):
+	def executeMove(self, move):
 		""" Calculate changes resulting from move """
-		sqX, sqY = squareTo
 		opponent = 1 if self.playerActive == 2 else 2
 		self.possibleMoves = []
 		# show piece move
 		self.drawBoard()
-		if abs(squareFrom[0] - squareTo[0]) > 1 or abs(squareFrom[1] - squareTo[1]) > 1:	# if distance is more than 1 square
-			self.jumpAnimation(squareFrom, squareTo)
+		if move.type == 2:
+			self.jumpAnimation(move)
 		else:
-			self.moveAnimation(squareFrom, squareTo)
+			self.moveAnimation(move)
 		self.drawBoard()
 		# calculate adjacent squares occupied by opponent
 		adjacentSquares = []
+		sqX = move.xTo
+		sqY = move.yTo
 		allAdjacentSquares =	[
 									(sqX - 1, sqY - 1), (sqX, sqY - 1), (sqX + 1, sqY - 1), 
 									(sqX - 1, sqY), 					(sqX + 1, sqY), 
@@ -224,6 +243,8 @@ class the7thGame():
 				print(m.show())
 			print()
 		# --- AI analyze -----------------------------------------
+		if self.playerActive == 2 and not args.twoplayer:
+			self.executeMove(computerAI.collectivePossibleMoves[0])
 		return True
 
 
@@ -289,7 +310,6 @@ class the7thGame():
 	def resetGame(self):
 		self.boardContent = [[0 for x in range(7)] for y in range(7)]
 		backgroundMusic.play()
-		# --- random --------------------------------------------------
 		player = 1
 		if args.random:
 			for x in range(int(args.random[0])):
@@ -302,24 +322,6 @@ class the7thGame():
 			self.boardContent[0][6] = 2
 			self.boardContent[6][0] = 2
 			self.boardContent[6][6] = 1
-
-
-
-
-			# # JUMP IS BEST - pattern
-			# self.boardContent[0][3] = 2
-			# self.boardContent[1][3] = 2
-			# self.boardContent[2][3] = 2
-			# self.boardContent[0][2] = 2
-			# self.boardContent[2][2] = 2
-
-
-
-
-
-
-
-		# --- random --------------------------------------------------
 		self.playerActive = 0
 		self.changePlayer()
 		self.possibleMoves = []
@@ -330,14 +332,13 @@ class the7thGame():
 
 
 
-
-	def jumpAnimation(self, fromSquare, toSquare):
+	def jumpAnimation(self, move):
 		""" Shows simple animation of a piece jumping 2 squares"""
-		self.boardContent[fromSquare[0]][fromSquare[1]] = 0
-		xFrom = fromSquare[0] * 100 + 50
-		yFrom = fromSquare[1] * 100 + 50
-		xTo =   toSquare[0]   * 100 + 50
-		yTo =   toSquare[1]   * 100 + 50
+		self.boardContent[move.xFrom][move.yFrom] = 0
+		xFrom = move.xFrom * 100 + 50
+		yFrom = move.yFrom * 100 + 50
+		xTo =   move.xTo   * 100 + 50
+		yTo =   move.yTo   * 100 + 50
 		xDistance = xFrom - xTo
 		yDistance = yFrom - yTo
 		xCord = xFrom
@@ -358,7 +359,7 @@ class the7thGame():
 			self.display.blit(imageScaled, (xCord - xSize / 2, yCord - ySize / 2) )
 			pygame.display.update()
 			time.sleep(0.02)
-		self.boardContent[toSquare[0]][toSquare[1]] = self.playerActive
+		self.boardContent[move.xTo][move.yTo] = self.playerActive
 		return True
 
 
@@ -380,13 +381,13 @@ class the7thGame():
 
 
 
-	def moveAnimation(self, fromSquare, toSquare):
+	def moveAnimation(self, move):
 		""" Shows simple animation of a piece moved from/to square """
-		self.boardContent[toSquare[0]][toSquare[1]] = self.playerActive
-		xFrom = fromSquare[0] * 100 + 50
-		yFrom = fromSquare[1] * 100 + 50
-		xTo =   toSquare[0]   * 100 + 50
-		yTo =   toSquare[1]   * 100 + 50
+		self.boardContent[move.xTo][move.yTo] = self.playerActive
+		xFrom = move.xFrom * 100 + 50
+		yFrom = move.yFrom * 100 + 50
+		xTo =   move.xTo   * 100 + 50
+		yTo =   move.yTo   * 100 + 50
 		xDistance = xFrom - xTo
 		yDistance = yFrom - yTo
 		xCord = xFrom
@@ -438,9 +439,10 @@ class the7thGame():
 							sounds['fail'].play()
 				elif self.stage == 2:							# move piece
 					# get the selected square
-					if square in self.possibleMoves:
-						self.executeMove(self.movingFrom, square)
-					elif square == self.movingFrom:
+					movingTo = list(filter(lambda x: x.xTo == square[0] and x.yTo == square[1], self.possibleMoves))
+					if len(movingTo) == 1: 
+						self.executeMove(movingTo[0])
+					elif square == self.movingFrom :
 						self.stage = 1
 						self.movingFrom = None
 						self.possibleMoves = []
@@ -469,6 +471,7 @@ parser = argparse.ArgumentParser(formatter_class=lambda prog: argparse.HelpForma
 parser.add_argument("-v", "--version",	action="store_true",	help="Print version and exit")
 parser.add_argument("-r", "--random", 	nargs=1, 				help="Add X random pieces at random positions")
 parser.add_argument("-a", "--analyze", 	action="store_true",	help="Print out AI analysis data in console")
+parser.add_argument("-t", "--twoplayer",action="store_true",	help="Play as a two-player game")
 args = parser.parse_args()
 if args.version:
 	sys.exit('\n  Current version is ' + self.version + '\n')
@@ -479,8 +482,8 @@ if args.random:
 
 
 # for DEV
-args.random = [1]
-args.random[0] = 50
+#args.random = [1]
+#args.random[0] = 50
 args.analyze = True
 # for DEV
 
@@ -494,7 +497,6 @@ obj.run()
 
 # --- TODO ---------------------------------------------------------------------------------------
 # - AI
-# - lav self.possibleMoves om til at indeholde MOVES, ikke bare coordinater
 
 
 # --- NOTES --------------------------------------------------------------------------------------

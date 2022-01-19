@@ -1,20 +1,4 @@
-
-class Move:
-	""" A move on the board """
-
-	def __init__(self, fx, fy, tx, ty):
-		self.xFrom = fx
-		self.yFrom = fy
-		self.xTo = tx
-		self.yTo = ty
-		self.score = None
-		self.scoreLog = ''
-		self.type = 2 if abs(self.xFrom - self.xTo) > 1 or abs(self.yFrom - self.yTo) > 1 else 1
-
-
-	def show(self):
-		return '(' + str(self.xFrom) + ',' + str(self.yFrom) + ' ---> ' + str(self.xTo) + ',' + str(self.yTo) + ') : SCORE=' + str(self.score) + ' TYPE=' + str(self.type) + ' LOG=' + self.scoreLog
-
+import copy
 
 
 class AI:
@@ -56,9 +40,7 @@ class AI:
 		for x in range(7):
 			for y in range(7):
 				if self.game.boardContent[x][y] == self.game.playerActive:
-					movesTo = self.game._calculatePossibleMoves((x,y))
-					for xTo, yTo in movesTo:
-						self.collectivePossibleMoves.append(Move(x, y, xTo, yTo))
+					self.collectivePossibleMoves += self.game._calculatePossibleMoves((x,y))
 		return self.collectivePossibleMoves
 
 
@@ -69,62 +51,83 @@ class AI:
 			self.collectivePossibleMoves[count].score = self.analyzeMove(self.collectivePossibleMoves[count])
 		# sort
 		self.collectivePossibleMoves.sort(reverse=True, key=lambda x: x.score)
-		# (for DEV): remove all moves that does not have top score, for better overview
+		# remove all moves that does not have top score, for better overview
+		# --- DEV---------------------------
 		if self.collectivePossibleMoves:
 			temp = []
 			maxValue = max(self.collectivePossibleMoves, key=lambda value: value.score).score
 			for move in self.collectivePossibleMoves:
-				if move.score == maxValue:
+				if move.score == float(maxValue):
 					temp.append(move)
 			self.collectivePossibleMoves = temp
-		# (for DEV): remove all moves that does not have top score, for better overview
+		# --- DEV---------------------------
 		return True
 
 
 
 	def analyzeMove(self, move):
 		""" calculates a score for a move """
-		score = 0
+		score = 0.0
 		adjacentTo, nearTo = self._getNearSquares(move.xTo, move.yTo)		# getting squares surrounding the TO-field 
 		opponent = 1 if self.game.playerActive == 2 else 2
 		for sqX2, sqY2 in adjacentTo:
 			if self.game.boardContent[sqX2][sqY2] == opponent:
-				score += 1
+				score += 1.0
 				move.scoreLog += 'C'
-
-
-		print(move.show())
-
-
-
 		if move.type == 1:
 			# move is a split
-			score += 1						# because it takes a new square
+			score += 1.0						# because it takes a new square
 			move.scoreLog += 'Split'
 		else:
-			# move is a jump
-			score += 0
+			# move is a jump... check if enemy is close to square left
+
+
+
+
+				# remove any captured pieces before calculating score.... how?
+					# fields in "nearTo"-variable must be simulated to == playerActive!
+
+			# clone the board to use for simulated environment
+			boardClone = copy.deepcopy(self.game.boardContent)
+
+#			print(move.show())
+			for coord in adjacentTo + nearTo:
+				if boardClone[coord[0]][coord[1]] == opponent:
+					boardClone[coord[0]][coord[1]] = self.game.playerActive
+#				print('----------', coord, boardClone[coord[0]][coord[1]])
+
+
+	#		import sys
+	#		sys.exit('killed for DEV')
+
+
+
+
 			adjacentFrom, nearFrom = self._getNearSquares(move.xFrom, move.yFrom)		# getting squares surrounding the FROM-field 
-
-
-
-
-			# calulate negtive points for leaving square open
-			#	-1 for each own piece left, but ONLY if opponent has piece within 2 squares to take it
-			#	PREFER to take where there are no neighbors
-
+			enemyAdjacent = False
+			enemyNear = False
+			opponent = 1 if self.game.playerActive == 2 else 2
+			for m in adjacentFrom:
+				if boardClone[m[0]][m[1]] == opponent:
+					enemyAdjacent = True
+			if not enemyAdjacent:
+				for m in nearFrom:
+					if boardClone[m[0]][m[1]] == opponent:
+						enemyNear = True
+			if enemyAdjacent:
+				score -= 1.5
+				move.scoreLog += '-Adjacent'
+			elif enemyNear:
+				score -= 1.0
+				move.scoreLog += '-Near'
 		return score
-
-
-
-
 
 
 
 
 # --- NOTES --------------------------------------------------------------------------------------
 #		
-#		
+#		Traek de felter fra regnestykket som evt bliver overtaget ved JUMP
 #		
 #		
 #		
