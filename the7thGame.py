@@ -19,15 +19,21 @@ from PIL import Image
 # --- Variables / Ressources ----------------------------------------------------------------------
 
 pygame.init()
-version = '0.5'	# added jump-logic
+version = '0.61'		# prep for changing self.possibleMoves
 sounds =	{
-					'no' :		pygame.mixer.Sound("snd/no.mp3"),
-					'fail' :	pygame.mixer.Sound("snd/fail.mp3"),
-					'noMoves' : pygame.mixer.Sound("snd/nomoves.mp3")
+					'no' :			pygame.mixer.Sound("snd/no.mp3"),
+					'fail' :		pygame.mixer.Sound("snd/fail.mp3"),
+					'noMoves' : 	pygame.mixer.Sound("snd/nomoves.mp3"),
+					'splitA' : 		pygame.mixer.Sound("snd/leucocyteSplit.mp3"),
+					'splitB' : 		pygame.mixer.Sound("snd/covidSplit.mp3"),
+					'captureAdj' : 	pygame.mixer.Sound("snd/captureAdjacent.mp3"),
+					'jump' : 		pygame.mixer.Sound("snd/jump.mp3")
 			}
+backgroundMusic = pygame.mixer.Sound("snd/Mozart.-.Symphony.No.40.1st.Movement.mp3")
+backgroundMusic.set_volume(0.03)
 background = pygame.image.load('gfx/background.png')
-playerNames =  { 1 : 'Leucocytes', 2 : 'Covid-19' }
-playerColors = { 1 : (255, 255, 255), 2 : (255, 0, 0) }
+playerNames =  { 0 : 'None', 1 : 'Leucocytes', 2 : 'Covid-19' }
+playerColors = { 0 : (255, 0, 0), 1 : (255, 255, 255), 2 : (255, 0, 0) }
 playerImages = { 1 : pygame.image.load("gfx/hvidt-blodlegme.png") , 2 : pygame.image.load("gfx/corona-virus.png") }
 font30 = pygame.font.Font('freesansbold.ttf', 30)
 font60 = pygame.font.Font('freesansbold.ttf', 60)
@@ -65,11 +71,15 @@ class the7thGame():
 	def __init__(self):
 		self.width = 700
 		self.height = 750
-		self.resetGame()
+		self.playerActive = 0
 		pygame.init()
 		pygame.display.set_caption('The Covid-19 Game')
 		self.display = pygame.display.set_mode((self.width, self.height))
-		self.running = True
+
+
+
+	def run(self):
+		self.resetGame()
 		self.loop()
 
 
@@ -97,7 +107,15 @@ class the7thGame():
 		for x, y  in self.possibleMoves:
 			coordX = x * 100 + 50
 			coordY = y * 100 + 50
-			pygame.draw.circle(self.display, colors.red, (coordX, coordY), 10)
+			if abs(self.movingFrom[0] - x) > 1 or abs(self.movingFrom[1] - y) > 1:
+				pygame.draw.rect(self.display, colors.red, (coordX - 3, coordY - 15, 6, 10))
+				pygame.draw.polygon(self.display, colors.red, ((coordX - 10, coordY - 5),(coordX + 10, coordY - 5),(coordX, coordY + 5)) )
+				pygame.draw.ellipse(self.display, colors.red, (coordX - 10, coordY + 10, 20, 8))
+			else:
+				pygame.draw.circle(self.display, colors.red, (coordX, coordY), 10)	# near
+
+
+	def drawStatus(self):
 		# draw status area
 		scoreA = str(self.score[0]) if self.score[0] > 9 else '0' + str(self.score[0])
 		scoreB = str(self.score[1]) if self.score[1] > 9 else '0' + str(self.score[1])
@@ -185,22 +203,34 @@ class the7thGame():
 			if self.boardContent[sqX2][sqY2] == opponent:
 				self.takeoverAnimation((sqX2, sqY2))
 				self.boardContent[sqX2][sqY2] = self.playerActive
-		self.stage = 1
-		self.movingFrom = None
-		self.playerActive = 1 if self.playerActive == 2 else 2
+		self.changePlayer()
 		return True
 
 
 
-	def checkStatus(self):
+	def changePlayer(self):
+		self.stage = 1
+		self.movingFrom = None
+		if self.playerActive == 1:
+			self.playerActive = 2
+		else:
+			self.playerActive = 1
+		computerAI.getPossibleMoves()
+		computerAI.analyzeAllMoves()
+		# --- AI analyze -----------------------------------------
+		if args.analyze:
+			print(playerNames[self.playerActive] + ' has ' + str(len(computerAI.collectivePossibleMoves)) + ' posible moves')
+			for m in computerAI.collectivePossibleMoves:
+				print(m.show())
+			print()
+		# --- AI analyze -----------------------------------------
+		return True
+
+
+
+	def updateStatus(self):
 		""" Check if any player has no pieces left, and end game if true """
-		# does active player have possible moves?
-		collectivePossibleMoves = []
-		for x in range(7):
-			for y in range(7):
-				if self.boardContent[x][y] == self.playerActive:
-					collectivePossibleMoves += self._calculatePossibleMoves((x,y))
-		if not collectivePossibleMoves:
+		if len(computerAI.collectivePossibleMoves) == 0:
 			self.winner = self.playerActive
 			condition = "Player can't  move"
 		# are all squares taken?
@@ -258,6 +288,7 @@ class the7thGame():
 
 	def resetGame(self):
 		self.boardContent = [[0 for x in range(7)] for y in range(7)]
+		backgroundMusic.play()
 		# --- random --------------------------------------------------
 		player = 1
 		if args.random:
@@ -271,12 +302,32 @@ class the7thGame():
 			self.boardContent[0][6] = 2
 			self.boardContent[6][0] = 2
 			self.boardContent[6][6] = 1
+
+
+
+
+			# # JUMP IS BEST - pattern
+			# self.boardContent[0][3] = 2
+			# self.boardContent[1][3] = 2
+			# self.boardContent[2][3] = 2
+			# self.boardContent[0][2] = 2
+			# self.boardContent[2][2] = 2
+
+
+
+
+
+
+
 		# --- random --------------------------------------------------
+		self.playerActive = 0
+		self.changePlayer()
 		self.possibleMoves = []
-		self.playerActive = 1	# value = 0, 1 or 2
 		self.stage = 1	# either 1 = selectPiece or 2 = movePiece
 		self.score = [2, 2]
 		self.winner = 0
+		self.running = True
+
 
 
 
@@ -293,6 +344,7 @@ class the7thGame():
 		yCord = yFrom
 		size = 80
 		# execute move
+		sounds['jump'].play()
 		for step in range(20):
 			if step <= 9:
 				size += 7
@@ -315,6 +367,7 @@ class the7thGame():
 		""" Shows simple animation of a piece taken by another """
 		xCord = square[0] * 100 + 50
 		yCord = square[1] * 100 + 50
+		sounds['captureAdj'].play()
 		for size in range(1, 80):
 			imageScaled = pygame.transform.scale(playerImages[self.playerActive], (size, size))
 			xSize, ySize = imageScaled.get_size()
@@ -339,6 +392,10 @@ class the7thGame():
 		xCord = xFrom
 		yCord = yFrom
 		# execute move
+		if self.playerActive == 1:
+			sounds['splitA'].play()
+		else:
+			sounds['splitB'].play()
 		for tick in range(100):
 			xCord -= (xDistance / 100)
 			yCord -= (yDistance / 100)
@@ -396,8 +453,9 @@ class the7thGame():
 		""" Ensure that view runs until terminated by user """
 		while self.running:
 			self.drawBoard()
+			self.drawStatus()
 			self.checkInput()
-			self.checkStatus()
+			self.updateStatus()
 			pygame.display.update()
 		pygame.quit()
 		print('\n  Game terminated gracefully\n')
@@ -408,8 +466,9 @@ class the7thGame():
 
 #check arguments
 parser = argparse.ArgumentParser(formatter_class=lambda prog: argparse.HelpFormatter(prog,max_help_position=120))
-parser.add_argument("-v", "--version",		action="store_true",	help="Print version and exit")
-parser.add_argument("-r", "--random", nargs=1, help="Add X random pieces at random positions")
+parser.add_argument("-v", "--version",	action="store_true",	help="Print version and exit")
+parser.add_argument("-r", "--random", 	nargs=1, 				help="Add X random pieces at random positions")
+parser.add_argument("-a", "--analyze", 	action="store_true",	help="Print out AI analysis data in console")
 args = parser.parse_args()
 if args.version:
 	sys.exit('\n  Current version is ' + self.version + '\n')
@@ -418,14 +477,24 @@ if args.random:
 		sys.exit("\n  Let's be reasonable...\n")
 
 
-opponent = AI()
+
+# for DEV
+args.random = [1]
+args.random[0] = 50
+args.analyze = True
+# for DEV
+
+
+
 colors = colorList
 obj = the7thGame()
+computerAI = AI(obj)
+obj.run()
 
 
 # --- TODO ---------------------------------------------------------------------------------------
 # - AI
-
+# - lav self.possibleMoves om til at indeholde MOVES, ikke bare coordinater
 
 
 # --- NOTES --------------------------------------------------------------------------------------
