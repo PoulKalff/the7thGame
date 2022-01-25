@@ -1,5 +1,8 @@
 #!/usr/bin/python3
 
+from os import environ
+environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 import io
 import os
 import sys
@@ -19,7 +22,7 @@ from PIL import Image
 # --- Variables / Ressources ----------------------------------------------------------------------
 
 pygame.init()
-version = '0.7'		# implemented AI as active player
+version = '0.9'		# finished AI
 sounds =	{
 				'no' :			pygame.mixer.Sound("snd/no.mp3"),
 				'fail' :		pygame.mixer.Sound("snd/fail.mp3"),
@@ -41,12 +44,9 @@ font60 = pygame.font.Font('freesansbold.ttf', 60)
 
 # --- Functions -----------------------------------------------------------------------------------
 
-def dumpSquares(squares):
-	""" Helper function to visualize squares """
-	return 'notImplemented Error'
-
 
 # --- Classes -------------------------------------------------------------------------------------
+
 
 class colorList:
 	black =			(0, 0, 0)
@@ -65,6 +65,30 @@ class colorList:
 
 
 
+class Players:
+	""" Helper-class : reference point for all players """
+
+	def __init__(self, active=1):
+		self.active = active
+		self.opponent = 1 if active == 2 else 2
+
+
+	def switch(self):
+		if self.active != 0:
+			_tmp = self.active
+			self.active = self.opponent
+			self.opponent = _tmp
+		else:
+			self.active = 1
+			self.opponent = 2
+
+
+	def inactivate(self):
+		self.active = 0
+		self.opponent = 0
+
+
+
 class Move:
 	""" A move on the board """
 
@@ -75,11 +99,12 @@ class Move:
 		self.yTo = ty
 		self.score = None
 		self.scoreLog = ''
+		self.recaptureable = None
 		self.type = 2 if abs(self.xFrom - self.xTo) > 1 or abs(self.yFrom - self.yTo) > 1 else 1
 
 
 	def show(self):
-		return '(' + str(self.xFrom) + ',' + str(self.yFrom) + ' ---> ' + str(self.xTo) + ',' + str(self.yTo) + ') ' + ('(JUMP) ' if self.type == 2 else '(SPLIT)') + '  ' + ('' if self.score != None and self.score < 0 else ' ') + str(self.score) + '  ' + self.scoreLog
+		return '(' + str(self.xFrom) + ',' + str(self.yFrom) + ' ---> ' + str(self.xTo) + ',' + str(self.yTo) + ') ' + ('(JUMP) ' if self.type == 2 else '(SPLIT)') + '  ' + ('' if self.score != None and self.score < 0 else ' ') + str(self.score) + '  ' + self.scoreLog #+ '  ' + str(self.recaptureable)
 
 
 
@@ -89,7 +114,7 @@ class the7thGame():
 	def __init__(self):
 		self.width = 700
 		self.height = 750
-		self.playerActive = 0
+		self.players = Players()
 		pygame.init()
 		pygame.display.set_caption('The Covid-19 Game')
 		self.display = pygame.display.set_mode((self.width, self.height))
@@ -139,7 +164,7 @@ class the7thGame():
 		scoreB = str(self.score[1]) if self.score[1] > 9 else '0' + str(self.score[1])
 		text1 = font30.render('Player move : ', True, colors.blue)
 		if not self.winner:
-			text2 = font30.render(playerNames[self.playerActive], True, playerColors[self.playerActive] )
+			text2 = font30.render(playerNames[self.players.active], True, playerColors[self.players.active] )
 		else:
 			text2 = font30.render('None', True, colors.red )
 		text3 = font30.render('Score : ', True, colors.blue )
@@ -175,8 +200,9 @@ class the7thGame():
 
 
 
-	def _calculatePossibleMoves(self, square):
+	def _calculatePossibleMoves(self, square, board = None):
 		""" Returns the possible moves from a given position """
+		board = self.boardContent if not board else board
 		sqX, sqY = square
 		possibleMoves = []
 		allMoves =	[
@@ -188,7 +214,7 @@ class the7thGame():
 					]
 		for coord in allMoves:
 			if -1 < coord[0] < 7 and -1 < coord[1] < 7:
-				if self.boardContent[coord[0]][coord[1]] == 0:
+				if board[coord[0]][coord[1]] == 0:
 					possibleMoves.append( Move(sqX, sqY, coord[0], coord[1]) )
 		return possibleMoves
 
@@ -196,7 +222,6 @@ class the7thGame():
 
 	def executeMove(self, move):
 		""" Calculate changes resulting from move """
-		opponent = 1 if self.playerActive == 2 else 2
 		self.possibleMoves = []
 		# show piece move
 		self.drawBoard()
@@ -216,12 +241,12 @@ class the7thGame():
 								]
 		for coord in allAdjacentSquares:
 			if -1 < coord[0] < 7 and -1 < coord[1] < 7:
-				if self.boardContent[coord[0]][coord[1]] != self.playerActive:
+				if self.boardContent[coord[0]][coord[1]] != self.players.active:
 					adjacentSquares.append(coord)
 		for sqX2, sqY2 in adjacentSquares:
-			if self.boardContent[sqX2][sqY2] == opponent:
+			if self.boardContent[sqX2][sqY2] == self.players.opponent:
 				self.takeoverAnimation((sqX2, sqY2))
-				self.boardContent[sqX2][sqY2] = self.playerActive
+				self.boardContent[sqX2][sqY2] = self.players.active
 		self.changePlayer()
 		return True
 
@@ -230,21 +255,20 @@ class the7thGame():
 	def changePlayer(self):
 		self.stage = 1
 		self.movingFrom = None
-		if self.playerActive == 1:
-			self.playerActive = 2
-		else:
-			self.playerActive = 1
+		self.players.switch()
 		computerAI.getPossibleMoves()
 		computerAI.analyzeAllMoves()
 		# --- AI analyze -----------------------------------------
 		if args.analyze:
-			print(playerNames[self.playerActive] + ' has ' + str(len(computerAI.collectivePossibleMoves)) + ' posible moves')
+			print(playerNames[self.players.active] + ' has ' + str(len(computerAI.collectivePossibleMoves)) + ' posible move' + ('s' if len(computerAI.collectivePossibleMoves) > 1 else ''))
 			for m in computerAI.collectivePossibleMoves:
 				print(m.show())
 			print()
 		# --- AI analyze -----------------------------------------
-		if self.playerActive == 2 and not args.twoplayer:
-			self.executeMove(computerAI.collectivePossibleMoves[0])
+		if self.players.active == 2 and not args.twoplayer:
+			time.sleep(0.5)
+			if len(computerAI.collectivePossibleMoves) > 0:
+				self.executeMove(computerAI.collectivePossibleMoves[0])
 		return True
 
 
@@ -252,7 +276,7 @@ class the7thGame():
 	def updateStatus(self):
 		""" Check if any player has no pieces left, and end game if true """
 		if len(computerAI.collectivePossibleMoves) == 0:
-			self.winner = self.playerActive
+			self.winner = self.players.active
 			condition = "Player can't  move"
 		# are all squares taken?
 		if self.score[0] + self.score[1] == 49:
@@ -322,7 +346,7 @@ class the7thGame():
 			self.boardContent[0][6] = 2
 			self.boardContent[6][0] = 2
 			self.boardContent[6][6] = 1
-		self.playerActive = 0
+		self.players.inactivate()
 		self.changePlayer()
 		self.possibleMoves = []
 		self.stage = 1	# either 1 = selectPiece or 2 = movePiece
@@ -354,12 +378,12 @@ class the7thGame():
 			xCord -= 10 * (xDistance / 200)
 			yCord -= 10 * (yDistance / 200)
 			self.drawBoard()
-			imageScaled = pygame.transform.scale(playerImages[self.playerActive], (size, size))
+			imageScaled = pygame.transform.scale(playerImages[self.players.active], (size, size))
 			xSize, ySize = imageScaled.get_size()
 			self.display.blit(imageScaled, (xCord - xSize / 2, yCord - ySize / 2) )
 			pygame.display.update()
 			time.sleep(0.02)
-		self.boardContent[move.xTo][move.yTo] = self.playerActive
+		self.boardContent[move.xTo][move.yTo] = self.players.active
 		return True
 
 
@@ -370,7 +394,7 @@ class the7thGame():
 		yCord = square[1] * 100 + 50
 		sounds['captureAdj'].play()
 		for size in range(1, 80):
-			imageScaled = pygame.transform.scale(playerImages[self.playerActive], (size, size))
+			imageScaled = pygame.transform.scale(playerImages[self.players.active], (size, size))
 			xSize, ySize = imageScaled.get_size()
 			if size == 79:
 				pygame.draw.circle(self.display, colors.black, (xCord, yCord), 47)
@@ -383,7 +407,7 @@ class the7thGame():
 
 	def moveAnimation(self, move):
 		""" Shows simple animation of a piece moved from/to square """
-		self.boardContent[move.xTo][move.yTo] = self.playerActive
+		self.boardContent[move.xTo][move.yTo] = self.players.active
 		xFrom = move.xFrom * 100 + 50
 		yFrom = move.yFrom * 100 + 50
 		xTo =   move.xTo   * 100 + 50
@@ -393,14 +417,14 @@ class the7thGame():
 		xCord = xFrom
 		yCord = yFrom
 		# execute move
-		if self.playerActive == 1:
+		if self.players.active == 1:
 			sounds['splitA'].play()
 		else:
 			sounds['splitB'].play()
 		for tick in range(100):
 			xCord -= (xDistance / 100)
 			yCord -= (yDistance / 100)
-			self.display.blit(playerImages[self.playerActive], (xCord - 40, yCord - 40) )
+			self.display.blit(playerImages[self.players.active], (xCord - 40, yCord - 40) )
 			pygame.display.update()
 			time.sleep(0.001)
 		return True
@@ -425,7 +449,7 @@ class the7thGame():
 				square = self._posToSquare(pos)
 				selectedPiece = self._pieceOnSquare(square)
 				if self.stage == 1:								# select piece
-					if selectedPiece == self.playerActive:
+					if selectedPiece == self.players.active:
 						self.movingFrom = square
 						self.possibleMoves =  self._calculatePossibleMoves(square)
 						if self.possibleMoves:
@@ -460,7 +484,7 @@ class the7thGame():
 			self.updateStatus()
 			pygame.display.update()
 		pygame.quit()
-		print('\n  Game terminated gracefully\n')
+		print('  Game terminated gracefully\n')
 
 
 # --- Main  ---------------------------------------------------------------------------------------
@@ -478,15 +502,19 @@ if args.version:
 if args.random:
 	if int(args.random[0]) > 100:
 		sys.exit("\n  Let's be reasonable...\n")
+if args.analyze:
+	print('\nDumping AI analysis data:')
+
+
+#args.analyze = True
+
 
 
 
 # for DEV
 #args.random = [1]
 #args.random[0] = 50
-args.analyze = True
 # for DEV
-
 
 
 colors = colorList
@@ -496,7 +524,7 @@ obj.run()
 
 
 # --- TODO ---------------------------------------------------------------------------------------
-# - AI
+# - 
 
 
 # --- NOTES --------------------------------------------------------------------------------------
